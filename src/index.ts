@@ -173,6 +173,7 @@ export declare interface MotionGateway {
   on(event: 'error', listener: (err: Error) => void): this
 }
 
+// eslint-disable-next-line no-redeclare
 export class MotionGateway extends EventEmitter {
   static Gateway = DEVICE_TYPE_GATEWAY
   static Blind = DEVICE_TYPE_BLIND
@@ -266,7 +267,7 @@ export class MotionGateway extends EventEmitter {
     const devices = await this.getDeviceList()
     return Promise.all(
       devices.data
-        .filter(d => d.deviceType != DEVICE_TYPE_GATEWAY)
+        .filter(d => d.deviceType !== DEVICE_TYPE_GATEWAY)
         .map(d => this.readDevice(d.mac, d.deviceType))
     )
   }
