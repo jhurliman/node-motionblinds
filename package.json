@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+  "license": "MIT",
+  "description": "A library for interfacing with Motion Blinds from Coulisse B.V",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "start": "tsdx watch",
+    "build": "tsdx build",
+    "test": "tsdx test",
+    "test:hil": "tsdx test --testMatch '<rootDir>/hiltest/*.ts'",
+    "lint": "tsdx lint",
+    "prepare": "tsdx build"
+  },
+  "peerDependencies": {},
+  "husky": {
+    "hooks": {
+      "pre-commit": "tsdx lint"
+    }
+  },
+  "prettier": {
+    "printWidth": 100,
+    "semi": false,
+    "singleQuote": true,
+    "trailingComma": "es5"
+  },
+  "name": "node-motionblinds",
+  "author": "John Hurliman",
+  "homepage": "https://github.com/jhurliman/node-motionblinds",
+  "module": "dist/node-motionblinds.esm.js",
+  "devDependencies": {
+    "husky": "^5.1.0",
+    "tsdx": "^0.14.1",
+    "tslib": "^2.1.0",
+    "typescript": "^4.1.5"
+  }
+}
