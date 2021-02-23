@@ -2,22 +2,22 @@ import * as dgram from 'dgram'
 import * as crypto from 'crypto'
 import { EventEmitter } from 'events'
 
-const MULTICAST_IP = '238.0.0.18'
-const UDP_PORT_SEND = 32100
-const UDP_PORT_RECEIVE = 32101
+export const MULTICAST_IP = '238.0.0.18'
+export const UDP_PORT_SEND = 32100
+export const UDP_PORT_RECEIVE = 32101
 
-const DEVICE_TYPE_GATEWAY = '02000002' // Gateway
-const DEVICE_TYPE_BLIND = '10000000' // Standard Blind
-const DEVICE_TYPE_TDBU = '10000001' // Top Down Bottom Up
-const DEVICE_TYPE_DR = '10000002' // Double Roller
+export const DEVICE_TYPE_GATEWAY = '02000002' // Gateway
+export const DEVICE_TYPE_BLIND = '10000000' // Standard Blind
+export const DEVICE_TYPE_TDBU = '10000001' // Top Down Bottom Up
+export const DEVICE_TYPE_DR = '10000002' // Double Roller
 
-type DeviceType =
+export type DeviceType =
   | typeof DEVICE_TYPE_GATEWAY
   | typeof DEVICE_TYPE_BLIND
   | typeof DEVICE_TYPE_TDBU
   | typeof DEVICE_TYPE_DR
 
-enum BlindType {
+export enum BlindType {
   RollerBlind = 1,
   VenetianBlind = 2,
   RomanBlind = 3,
@@ -36,25 +36,25 @@ enum BlindType {
   Switch = 43,
 }
 
-enum CurrentState {
+export enum CurrentState {
   Working = 1,
   Pairing = 2,
   Updating = 3,
 }
 
-enum Operation {
+export enum Operation {
   CloseDown = 0,
   OpenUp = 1,
   Stop = 2,
   StatusQuery = 5,
 }
 
-enum VoltageMode {
+export enum VoltageMode {
   AC = 0,
   DC = 1,
 }
 
-enum LimitsState {
+export enum LimitsState {
   NoLimits = 0,
   TopLimitDetected = 1,
   BottomLimitDetected = 2,
@@ -62,14 +62,14 @@ enum LimitsState {
   ThirdLimitDetected = 4,
 }
 
-enum WirelessMode {
+export enum WirelessMode {
   UniDirectional = 0,
   BiDirectional = 1,
   BiDirectionalMechanicalLimits = 2,
   Other = 3,
 }
 
-type DeviceStatus = {
+export type DeviceStatus = {
   type: BlindType
   operation: Operation
   currentPosition: number
@@ -81,7 +81,7 @@ type DeviceStatus = {
   RSSI: number
 }
 
-type GetDeviceListAck = {
+export type GetDeviceListAck = {
   msgType: 'GetDeviceListAck'
   mac: string
   deviceType: DeviceType
@@ -90,14 +90,14 @@ type GetDeviceListAck = {
   data: [{ mac: string; deviceType: DeviceType }]
 }
 
-type ReadDeviceAck = {
+export type ReadDeviceAck = {
   msgType: 'ReadDeviceAck'
   mac: string
   deviceType: DeviceType
   data: DeviceStatus
 }
 
-type WriteDeviceData = {
+export type WriteDeviceData = {
   operation?: Operation
   targetPosition?: number // [0-100]
   targetAngle?: number // [0-180]
@@ -107,7 +107,7 @@ type WriteDeviceData = {
   targetPosition_B?: number // [0-100]
 }
 
-type WriteDeviceAck = {
+export type WriteDeviceAck = {
   msgType: 'WriteDeviceAck'
   mac: string
   deviceType: DeviceType
@@ -130,7 +130,7 @@ type WriteDeviceAck = {
   }
 }
 
-type Heartbeat = {
+export type Heartbeat = {
   msgType: 'Heartbeat'
   mac: string
   deviceType: DeviceType
@@ -141,16 +141,18 @@ type Heartbeat = {
   }
 }
 
-type Report = {
+export type Report = {
   msgType: 'Report'
   mac: string
   deviceType: DeviceType
   data: DeviceStatus
 }
 
-type SendCallback = (err: Error | undefined, res: any) => void
+export type BatteryInfo = [number, number] // [voltage, percent]
 
-type BatteryInfo = [number, number] // [voltage, percent]
+// Private helpers /////////////////////////////////////////////////////////////
+
+type SendCallback = (err: Error | undefined, res: any) => void
 
 function GetWaitHandle(msgType: string, msg: any) {
   switch (msgType) {
@@ -166,6 +168,8 @@ function GetWaitHandle(msgType: string, msg: any) {
 function Clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(min, value), max)
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 export declare interface MotionGateway {
   on(event: 'heartbeat', listener: (heartbeat: Heartbeat) => void): this

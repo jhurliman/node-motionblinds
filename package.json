@@ -31,10 +31,10 @@
     "singleQuote": true,
     "trailingComma": "es5"
   },
-  "name": "node-motionblinds",
+  "name": "motionblinds",
   "author": "John Hurliman",
   "homepage": "https://github.com/jhurliman/node-motionblinds",
-  "module": "dist/node-motionblinds.esm.js",
+  "module": "dist/motionblinds.esm.js",
   "devDependencies": {
     "husky": "^5.1.0",
     "tsdx": "^0.14.1",
