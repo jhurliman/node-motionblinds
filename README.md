@@ -18,7 +18,7 @@ for examples of reading and writing to blinds.
 ```javascript
 import MotionGateway from 'motionblinds'
 
-(async main() {
+(async function main () {
   // Initialize the MotionGateway class. Passing in the optional `key` parameter
   // enables write commands
   const gw = new MotionGateway('<YOUR_MOTION_KEY>')
