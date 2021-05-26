@@ -134,6 +134,7 @@ export type Heartbeat = {
   msgType: 'Heartbeat'
   mac: string
   deviceType: DeviceType
+  token: string
   data: {
     currentState: CurrentState
     numberOfDevices: number
@@ -196,7 +197,6 @@ export class MotionGateway extends EventEmitter {
   timeout: number
   sendSocket?: dgram.Socket
   recvSocket?: dgram.Socket
-  msgID = 0
   callbacks = new Map<string, SendCallback>()
 
   constructor(key?: string, timeout: number = 3.0) {
@@ -241,6 +241,9 @@ export class MotionGateway extends EventEmitter {
     recvSocket.on('message', (payload, _) => {
       const msg = JSON.parse(payload.toString('utf8'))
       if (msg.msgType === 'Heartbeat') {
+        if (this.token == undefined) {
+          this.token = (msg as Heartbeat).token
+        }
         this.emit('heartbeat', msg as Heartbeat)
       } else if (msg.msgType === 'Report') {
         this.emit('report', msg as Report)
@@ -348,11 +351,22 @@ export class MotionGateway extends EventEmitter {
     return [voltage, Clamp(percent, 0.0, 1.0)]
   }
 
+  static MessageID(date: Date): number {
+    // ex: 20200321134209916
+    const yyyy = date.getFullYear()
+    const MM = (date.getMonth() + 1).toString().padStart(2, "0")
+    const dd = date.getDate().toString().padStart(2, "0")
+    const hh = date.getHours().toString().padStart(2, "0")
+    const mm = date.getMinutes().toString().padStart(2, "0")
+    const ss = date.getSeconds().toString().padStart(2, "0")
+    const sss = date.getMilliseconds().toString().padStart(3, "0")
+    return parseInt(`${yyyy}${MM}${dd}${hh}${mm}${ss}${sss}`)
+  }
+
   private _sendReceive(message: any, waitHandle: string) {
     if (!this.sendSocket) this.start()
 
-    const msgID = ++this.msgID
-    message.msgID = msgID
+    message.msgID = MotionGateway.MessageID(new Date())
     const payload = JSON.stringify(message)
 
     return new Promise<any>((resolve, reject) => {

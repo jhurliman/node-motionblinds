@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "description": "A library for interfacing with Motion Blinds from Coulisse B.V",
   "main": "dist/index.js",
@@ -36,6 +36,8 @@
   "homepage": "https://github.com/jhurliman/node-motionblinds",
   "module": "dist/motionblinds.esm.js",
   "devDependencies": {
+    "@types/jest": "^26.0.23",
+    "@types/node": "^15.6.1",
     "husky": "^5.1.0",
     "tsdx": "^0.14.1",
     "tslib": "^2.1.0",
