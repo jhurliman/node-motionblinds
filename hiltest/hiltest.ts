@@ -32,7 +32,7 @@ describe('MotionGateway', () => {
       return
     }
 
-    const gw = new MotionGateway(key)
+    const gw = new MotionGateway({ key })
     const devices = await gw.readAllDevices()
     const blinds = devices.reverse().find(d => d.deviceType === MotionGateway.Blind)
     expect(blinds).not.toBeUndefined()

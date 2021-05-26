@@ -151,6 +151,13 @@ export type Report = {
 
 export type BatteryInfo = [number, number] // [voltage, percent]
 
+export type MotionGatewayOpts = {
+  key?: string
+  token?: string
+  gatewayIp?: string
+  timeoutSec?: number
+}
+
 // Private helpers /////////////////////////////////////////////////////////////
 
 type SendCallback = (err: Error | undefined, res: any) => void
@@ -173,8 +180,8 @@ function Clamp(value: number, min: number, max: number) {
 ////////////////////////////////////////////////////////////////////////////////
 
 export declare interface MotionGateway {
-  on(event: 'heartbeat', listener: (heartbeat: Heartbeat) => void): this
-  on(event: 'report', listener: (report: Report) => void): this
+  on(event: 'heartbeat', listener: (heartbeat: Heartbeat, rinfo: dgram.RemoteInfo) => void): this
+  on(event: 'report', listener: (report: Report, rinfo: dgram.RemoteInfo) => void): this
   on(event: 'error', listener: (err: Error) => void): this
 }
 
@@ -194,15 +201,18 @@ export class MotionGateway extends EventEmitter {
 
   key?: string
   token?: string
-  timeout: number
+  gatewayIp?: string
+  timeoutSec: number
   sendSocket?: dgram.Socket
   recvSocket?: dgram.Socket
   callbacks = new Map<string, SendCallback>()
 
-  constructor(key?: string, timeout: number = 3.0) {
+  constructor({ key, token, gatewayIp, timeoutSec }: MotionGatewayOpts = {}) {
     super()
     this.key = key
-    this.timeout = timeout
+    this.token = token
+    this.gatewayIp = gatewayIp
+    this.timeoutSec = timeoutSec ?? 3
   }
 
   start() {
@@ -238,15 +248,26 @@ export class MotionGateway extends EventEmitter {
       this.emit('error', err)
     })
 
-    recvSocket.on('message', (payload, _) => {
-      const msg = JSON.parse(payload.toString('utf8'))
+    recvSocket.on('message', (payload, rinfo) => {
+      let msg: any
+      try {
+        msg = JSON.parse(payload.toString('utf8'))
+        if (msg.msgType == undefined) return
+      } catch {
+        return
+      }
+
+      if (this.gatewayIp == undefined) {
+        this.gatewayIp = rinfo.address
+      }
+
       if (msg.msgType === 'Heartbeat') {
         if (this.token == undefined) {
           this.token = (msg as Heartbeat).token
         }
-        this.emit('heartbeat', msg as Heartbeat)
+        this.emit('heartbeat', msg as Heartbeat, rinfo)
       } else if (msg.msgType === 'Report') {
-        this.emit('report', msg as Report)
+        this.emit('report', msg as Report, rinfo)
       } else if (msg.msgType === 'GetDeviceListAck') {
         this.token = (msg as GetDeviceListAck).token
       }
@@ -354,12 +375,27 @@ export class MotionGateway extends EventEmitter {
   static MessageID(date: Date): number {
     // ex: 20200321134209916
     const yyyy = date.getFullYear()
-    const MM = (date.getMonth() + 1).toString().padStart(2, "0")
-    const dd = date.getDate().toString().padStart(2, "0")
-    const hh = date.getHours().toString().padStart(2, "0")
-    const mm = date.getMinutes().toString().padStart(2, "0")
-    const ss = date.getSeconds().toString().padStart(2, "0")
-    const sss = date.getMilliseconds().toString().padStart(3, "0")
+    const MM = (date.getMonth() + 1).toString().padStart(2, '0')
+    const dd = date
+      .getDate()
+      .toString()
+      .padStart(2, '0')
+    const hh = date
+      .getHours()
+      .toString()
+      .padStart(2, '0')
+    const mm = date
+      .getMinutes()
+      .toString()
+      .padStart(2, '0')
+    const ss = date
+      .getSeconds()
+      .toString()
+      .padStart(2, '0')
+    const sss = date
+      .getMilliseconds()
+      .toString()
+      .padStart(3, '0')
     return parseInt(`${yyyy}${MM}${dd}${hh}${mm}${ss}${sss}`)
   }
 
@@ -375,8 +411,8 @@ export class MotionGateway extends EventEmitter {
 
       const timer = setTimeout(() => {
         this.callbacks.delete(waitHandle)
-        reject(new Error(`timed out after ${this.timeout} seconds`))
-      }, this.timeout * 1000)
+        reject(new Error(`timed out after ${this.timeoutSec} seconds`))
+      }, this.timeoutSec * 1000)
 
       const prevCallback = this.callbacks.get(waitHandle)
       if (prevCallback) prevCallback(new Error(`replaced`), undefined)
@@ -388,7 +424,7 @@ export class MotionGateway extends EventEmitter {
         resolve(response)
       })
 
-      sendSocket.send(payload, UDP_PORT_SEND, MULTICAST_IP, (err, _) => {
+      sendSocket.send(payload, UDP_PORT_SEND, this.gatewayIp ?? MULTICAST_IP, (err, _) => {
         if (err) {
           clearTimeout(timer)
           this.callbacks.delete(waitHandle)
