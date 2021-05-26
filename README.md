@@ -21,7 +21,7 @@ import MotionGateway from 'motionblinds'
 (async main() {
   // Initialize the MotionGateway class. Passing in the optional `key` parameter
   // enables write commands
-  const gw = new MotionGateway('<YOUR_MOTION_KEY>')
+  const gw = new MotionGateway({ key: '<YOUR_MOTION_KEY>' })
   // Open read and write sockets for UDP multicast communication with Motion
   // blinds. This will automatically be called when any outgoing message needs
   // to be sent, so it only needs to manually be called if you intend to
