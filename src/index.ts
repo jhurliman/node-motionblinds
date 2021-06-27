@@ -372,7 +372,7 @@ export class MotionGateway extends EventEmitter {
     return [voltage, Clamp(percent, 0.0, 1.0)]
   }
 
-  static MessageID(date: Date): number {
+  static MessageID(date: Date): string {
     // ex: 20200321134209916
     const yyyy = date.getFullYear()
     const MM = (date.getMonth() + 1).toString().padStart(2, '0')
@@ -396,7 +396,7 @@ export class MotionGateway extends EventEmitter {
       .getMilliseconds()
       .toString()
       .padStart(3, '0')
-    return parseInt(`${yyyy}${MM}${dd}${hh}${mm}${ss}${sss}`)
+    return `${yyyy}${MM}${dd}${hh}${mm}${ss}${sss}`
   }
 
   private _sendReceive(message: any, waitHandle: string) {
