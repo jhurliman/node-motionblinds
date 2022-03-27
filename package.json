@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "license": "MIT",
   "description": "A library for interfacing with Motion Blinds from Coulisse B.V",
   "main": "dist/index.js",
@@ -41,10 +41,11 @@
     "husky": "^5.1.0",
     "tsdx": "^0.14.1",
     "tslib": "^2.1.0",
-    "typescript": "^4.1.5"
+    "typescript": "^4.6.3"
   },
   "resolutions": {
     "**/@typescript-eslint/eslint-plugin": "^4.1.5",
     "**/@typescript-eslint/parser": "^4.1.5"
-  }
+  },
+  "dependencies": {}
 }
