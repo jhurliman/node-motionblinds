@@ -155,6 +155,7 @@ export type MotionGatewayOpts = {
   key?: string
   token?: string
   gatewayIp?: string
+  multicastInterface?: string
   timeoutSec?: number
 }
 
@@ -202,16 +203,18 @@ export class MotionGateway extends EventEmitter {
   key?: string
   token?: string
   gatewayIp?: string
+  multicastInterface?: string
   timeoutSec: number
   sendSocket?: dgram.Socket
   recvSocket?: dgram.Socket
   callbacks = new Map<string, SendCallback>()
 
-  constructor({ key, token, gatewayIp, timeoutSec }: MotionGatewayOpts = {}) {
+  constructor({ key, token, gatewayIp, timeoutSec, multicastInterface}: MotionGatewayOpts = {}) {
     super()
     this.key = key
     this.token = token
     this.gatewayIp = gatewayIp
+    this.multicastInterface = multicastInterface
     this.timeoutSec = timeoutSec ?? 3
   }
 
@@ -239,9 +242,9 @@ export class MotionGateway extends EventEmitter {
     const recvSocket = (this.recvSocket = dgram.createSocket('udp4'))
 
     recvSocket.on('listening', () => {
-      recvSocket.setBroadcast(true)
+ 
       recvSocket.setMulticastTTL(128)
-      recvSocket.addMembership(MULTICAST_IP)
+
     })
 
     recvSocket.on('error', err => {
@@ -273,7 +276,13 @@ export class MotionGateway extends EventEmitter {
       }
     })
 
-    recvSocket.bind(UDP_PORT_RECEIVE, MULTICAST_IP)
+    recvSocket.bind(UDP_PORT_RECEIVE, () => {
+      if (!(this.multicastInterface == undefined)){
+        recvSocket.setMulticastInterface(this.multicastInterface)
+      } 
+      recvSocket.addMembership(MULTICAST_IP,this.multicastInterface)
+      recvSocket.setBroadcast(true)
+    })
   }
 
   stop() {
