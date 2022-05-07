@@ -5,6 +5,7 @@ import { EventEmitter } from 'events'
 export const MULTICAST_IP = '238.0.0.18'
 export const UDP_PORT_SEND = 32100
 export const UDP_PORT_RECEIVE = 32101
+export const PROTOCOL_VERSION = '0.9'
 
 export const DEVICE_TYPE_GATEWAY = '02000002' // Gateway
 export const DEVICE_TYPE_BLIND = '10000000' // Standard Blind
@@ -158,11 +159,23 @@ export type MotionGatewayOpts = {
   timeoutSec?: number
 }
 
+export type Acknowledgement = GetDeviceListAck | ReadDeviceAck | WriteDeviceAck
+
+export type ReceivedMessage = GetDeviceListAck | ReadDeviceAck | WriteDeviceAck | Heartbeat | Report
+
+const MESSAGE_TYPES = new Set<string>([
+  'GetDeviceListAck',
+  'ReadDeviceAck',
+  'WriteDeviceAck',
+  'Heartbeat',
+  'Report',
+])
+
 // Private helpers /////////////////////////////////////////////////////////////
 
-type SendCallback = (err: Error | undefined, res: any) => void
+type SendCallback = (err: Error | undefined, res: Acknowledgement | undefined) => void
 
-function GetWaitHandle(msgType: string, msg: any) {
+function GetWaitHandle(msgType: string, msg: ReceivedMessage) {
   switch (msgType) {
     case 'ReadDeviceAck':
     case 'WriteDeviceAck':
@@ -202,6 +215,7 @@ export class MotionGateway extends EventEmitter {
   key?: string
   token?: string
   gatewayIp?: string
+  seenGatewayIp?: string
   timeoutSec: number
   sendSocket?: dgram.Socket
   recvSocket?: dgram.Socket
@@ -216,7 +230,7 @@ export class MotionGateway extends EventEmitter {
   }
 
   start() {
-    this.sendSocket = dgram.createSocket('udp4')
+    this.sendSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true })
 
     this.sendSocket.on('error', err => {
       if (this.callbacks.size) {
@@ -227,21 +241,34 @@ export class MotionGateway extends EventEmitter {
     })
 
     this.sendSocket.on('message', (payload, _) => {
-      const msg = JSON.parse(payload.toString('utf8'))
-      if (msg.msgType === 'GetDeviceListAck') {
-        this.token = (msg as GetDeviceListAck).token
+      const msg = parseJsonBuffer(payload) as Partial<ReceivedMessage> | undefined
+      if (!msg || typeof msg.msgType !== 'string') {
+        this.emit('error', new Error(`Failed to JSON parse ${payload.byteLength} byte message`))
+        return
       }
-      const waitHandle = GetWaitHandle(msg.msgType, msg)
-      const callback = this.callbacks.get(waitHandle)
-      if (callback) callback(undefined, msg)
+      if (!MESSAGE_TYPES.has(msg.msgType)) {
+        this.emit('error', new Error(`Unknown message type ${msg.msgType}`))
+        return
+      }
+      if (msg.msgType === 'GetDeviceListAck' && typeof msg.token === 'string') {
+        this.token = msg.token
+      }
+      const ack = msg as Acknowledgement
+      const waitHandle = GetWaitHandle(msg.msgType, ack)
+      this.callbacks.get(waitHandle)?.(undefined, ack)
     })
 
-    const recvSocket = (this.recvSocket = dgram.createSocket('udp4'))
+    const recvSocket = (this.recvSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true }))
 
     recvSocket.on('listening', () => {
-      recvSocket.setBroadcast(true)
-      recvSocket.setMulticastTTL(128)
-      recvSocket.addMembership(MULTICAST_IP)
+      try {
+        recvSocket.setBroadcast(true)
+        recvSocket.setMulticastTTL(128)
+        recvSocket.addMembership(MULTICAST_IP)
+      } catch (err) {
+        this.emit('error', err)
+        this.stop()
+      }
     })
 
     recvSocket.on('error', err => {
@@ -249,27 +276,25 @@ export class MotionGateway extends EventEmitter {
     })
 
     recvSocket.on('message', (payload, rinfo) => {
-      let msg: any
-      try {
-        msg = JSON.parse(payload.toString('utf8'))
-        if (msg.msgType == undefined) return
-      } catch {
+      const msg = parseJsonBuffer(payload) as Partial<ReceivedMessage> | undefined
+      if (!msg || typeof msg.msgType !== 'string') {
+        this.emit('error', new Error(`Failed to JSON parse ${payload.byteLength} byte message`))
+        return
+      }
+      if (!MESSAGE_TYPES.has(msg.msgType)) {
+        this.emit('error', new Error(`Unknown message type "${msg.msgType}"`))
         return
       }
 
-      if (this.gatewayIp == undefined) {
-        this.gatewayIp = rinfo.address
-      }
+      this.seenGatewayIp = rinfo.address
 
       if (msg.msgType === 'Heartbeat') {
-        if (this.token == undefined) {
-          this.token = (msg as Heartbeat).token
-        }
+        this.token = msg.token
         this.emit('heartbeat', msg as Heartbeat, rinfo)
       } else if (msg.msgType === 'Report') {
         this.emit('report', msg as Report, rinfo)
       } else if (msg.msgType === 'GetDeviceListAck') {
-        this.token = (msg as GetDeviceListAck).token
+        this.token = msg.token
       }
     })
 
@@ -288,7 +313,10 @@ export class MotionGateway extends EventEmitter {
   }
 
   readDevice(mac: string, deviceType: DeviceType): Promise<ReadDeviceAck> {
-    return this._sendReceive({ msgType: 'ReadDevice', mac, deviceType }, `ReadDeviceAck${mac}`)
+    return this._sendReceive(
+      { msgType: 'ReadDevice', mac, deviceType },
+      `ReadDeviceAck${mac}`
+    ) as Promise<ReadDeviceAck>
   }
 
   async readAllDevices() {
@@ -323,20 +351,19 @@ export class MotionGateway extends EventEmitter {
       accessToken = MotionGateway.AccessToken(this.key, this.token)
     }
 
-    return this._sendReceive(
-      {
-        msgType: 'WriteDevice',
-        mac,
-        deviceType,
-        data,
-        AccessToken: accessToken,
-      },
-      `WriteDeviceAck${mac}`
-    )
+    const writeDevice = {
+      msgType: 'WriteDevice',
+      mac,
+      deviceType,
+      data,
+      AccessToken: accessToken,
+    }
+    return this._sendReceive(writeDevice, `WriteDeviceAck${mac}`) as Promise<WriteDeviceAck>
   }
 
   getDeviceList(): Promise<GetDeviceListAck> {
-    return this._sendReceive({ msgType: 'GetDeviceList' }, 'GetDeviceListAck')
+    const req = { msgType: 'GetDeviceList' }
+    return this._sendReceive(req, 'GetDeviceListAck') as Promise<GetDeviceListAck>
   }
 
   static AccessToken(key: string, token: string) {
@@ -399,13 +426,16 @@ export class MotionGateway extends EventEmitter {
     return `${yyyy}${MM}${dd}${hh}${mm}${ss}${sss}`
   }
 
-  private _sendReceive(message: any, waitHandle: string) {
+  private _sendReceive(
+    message: Record<string, unknown>,
+    waitHandle: string
+  ): Promise<Acknowledgement | undefined> {
     if (!this.sendSocket) this.start()
 
     message.msgID = MotionGateway.MessageID(new Date())
     const payload = JSON.stringify(message)
 
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<Acknowledgement | undefined>((resolve, reject) => {
       const sendSocket = this.sendSocket
       if (!sendSocket) return reject(new Error(`not connected`))
 
@@ -424,7 +454,8 @@ export class MotionGateway extends EventEmitter {
         resolve(response)
       })
 
-      sendSocket.send(payload, UDP_PORT_SEND, this.gatewayIp ?? MULTICAST_IP, (err, _) => {
+      const destIp = this.gatewayIp ?? this.seenGatewayIp ?? MULTICAST_IP
+      sendSocket.send(payload, UDP_PORT_SEND, destIp, (err, _) => {
         if (err) {
           clearTimeout(timer)
           this.callbacks.delete(waitHandle)
@@ -432,5 +463,13 @@ export class MotionGateway extends EventEmitter {
         }
       })
     })
+  }
+}
+
+function parseJsonBuffer(buffer: Buffer): Record<string, unknown> | undefined {
+  try {
+    return JSON.parse(buffer.toString('utf8'))
+  } catch (err) {
+    return undefined
   }
 }
