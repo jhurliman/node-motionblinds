@@ -479,16 +479,12 @@ export class MotionGateway extends EventEmitter {
 
       const timer = setTimeout(() => {
         if (retry < MAX_RETRIES) {
-          console.log(`retrying: ${payload}`)
           this._sendReceive(message, waitHandle, retry + 1).then(resolve, reject)
         } else {
           this.callbacks.delete(waitHandle)
           reject(new Error(`timed out after ${timeoutMs}ms`))
         }
       }, timeoutMs)
-
-      const prevCallback = this.callbacks.get(waitHandle)
-      if (prevCallback) prevCallback(new Error(`replaced`), undefined)
 
       this.callbacks.set(waitHandle, (err, response) => {
         clearTimeout(timer)
