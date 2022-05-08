@@ -163,6 +163,7 @@ export type MotionGatewayOpts = {
   key?: string
   token?: string
   gatewayIp?: string
+  multicastInterface?: string
   timeoutSec?: number
 }
 
@@ -225,6 +226,7 @@ export class MotionGateway extends EventEmitter {
   key?: string
   token?: string
   gatewayIp?: string
+  multicastInterface?: string
   seenGatewayIp?: string
   maxTimeoutSec: number
   sendSocket?: dgram.Socket
@@ -233,11 +235,12 @@ export class MotionGateway extends EventEmitter {
 
   private lastMessageId: bigint | undefined
 
-  constructor({ key, token, gatewayIp, timeoutSec }: MotionGatewayOpts = {}) {
+  constructor({ key, token, gatewayIp, multicastInterface, timeoutSec }: MotionGatewayOpts = {}) {
     super()
     this.key = key
     this.token = token
     this.gatewayIp = gatewayIp
+    this.multicastInterface = multicastInterface
     this.maxTimeoutSec = timeoutSec ?? 3
   }
 
@@ -277,9 +280,12 @@ export class MotionGateway extends EventEmitter {
 
     recvSocket.on('listening', () => {
       try {
+        if (this.multicastInterface) {
+          recvSocket.setMulticastInterface(this.multicastInterface)
+        }
+        recvSocket.addMembership(MULTICAST_IP, this.multicastInterface)
         recvSocket.setBroadcast(true)
         recvSocket.setMulticastTTL(128)
-        recvSocket.addMembership(MULTICAST_IP)
       } catch (err) {
         this.emit('error', err)
         this.stop()
