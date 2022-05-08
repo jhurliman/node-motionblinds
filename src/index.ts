@@ -157,7 +157,7 @@ export type Report = {
   data: DeviceStatus
 }
 
-export type BatteryInfo = [voltage: number, percent: number]
+export type BatteryInfo = [number, number] // [voltage, percent]
 
 export type MotionGatewayOpts = {
   key?: string
@@ -468,7 +468,8 @@ export class MotionGateway extends EventEmitter {
       const sendSocket = this.sendSocket
       if (!sendSocket) return reject(new Error(`not connected`))
 
-      const timeoutMs = RETRY_MS[retry] ?? RETRY_MS[RETRY_MS.length - 1] + Math.trunc(Math.random() * 100)
+      const timeoutMs =
+        RETRY_MS[retry] ?? RETRY_MS[RETRY_MS.length - 1] + Math.trunc(Math.random() * 100)
 
       const timer = setTimeout(() => {
         if (retry < MAX_RETRIES) {
