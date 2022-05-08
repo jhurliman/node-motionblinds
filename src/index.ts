@@ -12,6 +12,13 @@ export const DEVICE_TYPE_BLIND = '10000000' // Standard Blind
 export const DEVICE_TYPE_TDBU = '10000001' // Top Down Bottom Up
 export const DEVICE_TYPE_DR = '10000002' // Double Roller
 
+export const DEVICE_TYPES = {
+  [DEVICE_TYPE_GATEWAY]: 'Gateway',
+  [DEVICE_TYPE_BLIND]: 'Blind',
+  [DEVICE_TYPE_TDBU]: 'Top Down Bottom Up',
+  [DEVICE_TYPE_DR]: 'Double Roller',
+}
+
 export type DeviceType =
   | typeof DEVICE_TYPE_GATEWAY
   | typeof DEVICE_TYPE_BLIND
@@ -171,6 +178,9 @@ const MESSAGE_TYPES = new Set<string>([
   'Report',
 ])
 
+const RETRY_MS = [400, 800, 1200, 1600]
+const MAX_RETRIES = 4
+
 // Private helpers /////////////////////////////////////////////////////////////
 
 type SendCallback = (err: Error | undefined, res: Acknowledgement | undefined) => void
@@ -216,17 +226,19 @@ export class MotionGateway extends EventEmitter {
   token?: string
   gatewayIp?: string
   seenGatewayIp?: string
-  timeoutSec: number
+  maxTimeoutSec: number
   sendSocket?: dgram.Socket
   recvSocket?: dgram.Socket
   callbacks = new Map<string, SendCallback>()
+
+  private lastMessageId: bigint | undefined
 
   constructor({ key, token, gatewayIp, timeoutSec }: MotionGatewayOpts = {}) {
     super()
     this.key = key
     this.token = token
     this.gatewayIp = gatewayIp
-    this.timeoutSec = timeoutSec ?? 3
+    this.maxTimeoutSec = timeoutSec ?? 3
   }
 
   start() {
@@ -240,7 +252,7 @@ export class MotionGateway extends EventEmitter {
       }
     })
 
-    this.sendSocket.on('message', (payload, _) => {
+    this.sendSocket.on('message', (payload, rinfo) => {
       const msg = parseJsonBuffer(payload) as Partial<ReceivedMessage> | undefined
       if (!msg || typeof msg.msgType !== 'string') {
         this.emit('error', new Error(`Failed to JSON parse ${payload.byteLength} byte message`))
@@ -250,6 +262,9 @@ export class MotionGateway extends EventEmitter {
         this.emit('error', new Error(`Unknown message type ${msg.msgType}`))
         return
       }
+
+      this.seenGatewayIp = rinfo.address
+
       if (msg.msgType === 'GetDeviceListAck' && typeof msg.token === 'string') {
         this.token = msg.token
       }
@@ -366,6 +381,46 @@ export class MotionGateway extends EventEmitter {
     return this._sendReceive(req, 'GetDeviceListAck') as Promise<GetDeviceListAck>
   }
 
+  generateMessageID(): string {
+    // ex: 20200321134209916
+    const date = new Date()
+    const yyyy = date.getFullYear()
+    const MM = (date.getMonth() + 1).toString().padStart(2, '0')
+    const dd = date
+      .getDate()
+      .toString()
+      .padStart(2, '0')
+    const hh = date
+      .getHours()
+      .toString()
+      .padStart(2, '0')
+    const mm = date
+      .getMinutes()
+      .toString()
+      .padStart(2, '0')
+    const ss = date
+      .getSeconds()
+      .toString()
+      .padStart(2, '0')
+    const sss = date
+      .getMilliseconds()
+      .toString()
+      .padStart(3, '0')
+    let messageIdStr = `${yyyy}${MM}${dd}${hh}${mm}${ss}${sss}`
+
+    // Ensure this messageId is greater than the last sent one
+    let messageId = BigInt(messageIdStr)
+    if (this.lastMessageId != undefined) {
+      if (messageId <= this.lastMessageId) {
+        messageId = this.lastMessageId + BigInt(1)
+        messageIdStr = messageId.toString()
+      }
+    }
+    this.lastMessageId = messageId
+
+    return messageIdStr
+  }
+
   static AccessToken(key: string, token: string) {
     const cipher = crypto.createCipheriv('aes-128-ecb', key, null)
     cipher.setAutoPadding(false)
@@ -399,50 +454,32 @@ export class MotionGateway extends EventEmitter {
     return [voltage, Clamp(percent, 0.0, 1.0)]
   }
 
-  static MessageID(date: Date): string {
-    // ex: 20200321134209916
-    const yyyy = date.getFullYear()
-    const MM = (date.getMonth() + 1).toString().padStart(2, '0')
-    const dd = date
-      .getDate()
-      .toString()
-      .padStart(2, '0')
-    const hh = date
-      .getHours()
-      .toString()
-      .padStart(2, '0')
-    const mm = date
-      .getMinutes()
-      .toString()
-      .padStart(2, '0')
-    const ss = date
-      .getSeconds()
-      .toString()
-      .padStart(2, '0')
-    const sss = date
-      .getMilliseconds()
-      .toString()
-      .padStart(3, '0')
-    return `${yyyy}${MM}${dd}${hh}${mm}${ss}${sss}`
-  }
-
   private _sendReceive(
     message: Record<string, unknown>,
-    waitHandle: string
+    waitHandle: string,
+    retry = 0
   ): Promise<Acknowledgement | undefined> {
     if (!this.sendSocket) this.start()
 
-    message.msgID = MotionGateway.MessageID(new Date())
+    message.msgID = this.generateMessageID()
     const payload = JSON.stringify(message)
 
     return new Promise<Acknowledgement | undefined>((resolve, reject) => {
       const sendSocket = this.sendSocket
       if (!sendSocket) return reject(new Error(`not connected`))
 
+      const timeoutMs =
+        RETRY_MS[retry] ?? RETRY_MS[RETRY_MS.length - 1] + Math.trunc(Math.random() * 100)
+
       const timer = setTimeout(() => {
-        this.callbacks.delete(waitHandle)
-        reject(new Error(`timed out after ${this.timeoutSec} seconds`))
-      }, this.timeoutSec * 1000)
+        if (retry < MAX_RETRIES) {
+          console.log(`retrying: ${payload}`)
+          this._sendReceive(message, waitHandle, retry + 1).then(resolve, reject)
+        } else {
+          this.callbacks.delete(waitHandle)
+          reject(new Error(`timed out after ${timeoutMs}ms`))
+        }
+      }, timeoutMs)
 
       const prevCallback = this.callbacks.get(waitHandle)
       if (prevCallback) prevCallback(new Error(`replaced`), undefined)
