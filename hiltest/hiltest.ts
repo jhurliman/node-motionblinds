@@ -1,8 +1,18 @@
 import { env } from 'process'
 
-import { DEVICE_TYPE_GATEWAY, MotionGateway, PROTOCOL_VERSION } from '../src'
+import {
+  BlindType,
+  DEVICE_TYPES,
+  DEVICE_TYPE_GATEWAY,
+  LimitsState,
+  MotionGateway,
+  Operation,
+  PROTOCOL_VERSION,
+  VoltageMode,
+  WirelessMode,
+} from '../src'
 
-jest.setTimeout(30 * 1000);
+jest.setTimeout(30 * 1000)
 
 describe('MotionGateway', () => {
   it('Fetches the device list', async () => {
@@ -35,6 +45,8 @@ describe('MotionGateway', () => {
     }
 
     const gw = new MotionGateway({ key })
+    gw.on('error', fail)
+    gw.start()
     const devices = await gw.readAllDevices()
     const allBlinds = devices.filter(d => d.deviceType === MotionGateway.Blind)
     expect(allBlinds).not.toHaveLength(0)
@@ -48,8 +60,8 @@ describe('MotionGateway', () => {
       expect(res.mac).toEqual(blinds.mac)
     }
 
-    // Wait three seconds
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    // Wait for blinds to start closing, if they are not already closed
+    await new Promise(resolve => setTimeout(resolve, 2000))
 
     // Stop all blinds
     for (const blinds of allBlinds) {
@@ -60,9 +72,6 @@ describe('MotionGateway', () => {
       expect(res.mac).toEqual(blinds.mac)
     }
 
-    // Wait three seconds
-    await new Promise(resolve => setTimeout(resolve, 3000))
-
     // Open all blinds
     for (const blinds of allBlinds) {
       const res = await gw.writeDevice(blinds.mac, blinds.deviceType, {
@@ -72,6 +81,28 @@ describe('MotionGateway', () => {
       expect(res.mac).toEqual(blinds.mac)
     }
 
+    // Wait for blinds to start opening
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    let logMessage = `gatewayIp=${gw.seenGatewayIp}`
+
+    const allDevices = await gw.readAllDevices()
+    for (const dev of allDevices) {
+      const [batteryVoltage, batteryPercent] = MotionGateway.BatteryInfo(dev.data.batteryLevel)
+      logMessage += `\n[${dev.mac} ${DEVICE_TYPES[dev.deviceType]}] type=${
+        BlindType[dev.data.type]
+      } operation=${Operation[dev.data.operation]} currentPosition=${
+        dev.data.currentPosition
+      } currentAngle=${dev.data.currentAngle} currentState=${
+        LimitsState[dev.data.currentState]
+      } voltageMode=${VoltageMode[dev.data.voltageMode]} batteryLevel=${
+        dev.data.batteryLevel
+      } batteryVoltage=${batteryVoltage} batteryPercent=${batteryPercent} wirelessMode=${
+        WirelessMode[dev.data.wirelessMode]
+      } RSSI=${dev.data.RSSI}`
+    }
+
     gw.stop()
+    console.log(logMessage)
   })
 })
