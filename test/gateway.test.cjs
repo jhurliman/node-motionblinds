@@ -273,7 +273,7 @@ test('malformed datagrams report errors without adopting a token or completing a
 })
 
 test('message IDs remain unique valid timestamps across a millisecond rollover and clock rollback', () => {
-  let now = new Date(2025, 11, 31, 23, 59, 59, 999).getTime()
+  let now = Date.UTC(2025, 11, 31, 23, 59, 59, 999)
   mock.method(Date, 'now', () => now)
   try {
     const gateway = new MotionGateway()
@@ -283,5 +283,26 @@ test('message IDs remain unique valid timestamps across a millisecond rollover a
     assert.equal(gateway.generateMessageID(), '20260101000000001')
   } finally {
     mock.restoreAll()
+  }
+})
+
+
+test('message IDs remain increasing across daylight-saving fall-back', () => {
+  const previousTZ = process.env.TZ
+  process.env.TZ = 'America/Los_Angeles'
+  let now = Date.parse('2026-11-01T08:59:59.999Z')
+  mock.method(Date, 'now', () => now)
+  try {
+    const gateway = new MotionGateway()
+    const before = gateway.generateMessageID()
+    now++
+    const after = gateway.generateMessageID()
+    assert.equal(before, '20261101085959999')
+    assert.equal(after, '20261101090000000')
+    assert.ok(after > before)
+  } finally {
+    mock.restoreAll()
+    if (previousTZ === undefined) delete process.env.TZ
+    else process.env.TZ = previousTZ
   }
 })

@@ -462,7 +462,7 @@ export class MotionGateway extends EventEmitter {
     this.lastMessageTime = Math.max(Date.now(), this.lastMessageTime + 1)
     const date = new Date(this.lastMessageTime)
     const part = (value: number, width = 2) => String(value).padStart(width, '0')
-    return `${date.getFullYear()}${part(date.getMonth() + 1)}${part(date.getDate())}${part(date.getHours())}${part(date.getMinutes())}${part(date.getSeconds())}${part(date.getMilliseconds(), 3)}`
+    return `${date.getUTCFullYear()}${part(date.getUTCMonth() + 1)}${part(date.getUTCDate())}${part(date.getUTCHours())}${part(date.getUTCMinutes())}${part(date.getUTCSeconds())}${part(date.getUTCMilliseconds(), 3)}`
   }
 
   static AccessToken(key: string, token: string) {
