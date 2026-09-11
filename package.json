@@ -7,7 +7,8 @@
     "dist",
     "src",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "RELEASING.md"
   ],
   "engines": {
     "node": ">=22"

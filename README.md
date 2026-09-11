@@ -13,6 +13,12 @@ and no runtime dependencies. Requests to the same device are serialized, replies
 with message IDs are correlated, and stopping a gateway rejects pending work and
 clears its timers. No cloud login is involved in this local protocol.
 
+## Maintainer wanted
+
+The current maintainer no longer has a compatible MOTION Blinds gateway and motors and cannot test this integration against a live setup. Automated tests pass, but this release has not been validated on physical hardware. Compatibility reports and fixes from active users are welcome.
+
+If you use this integration and would like to take over maintenance and releases, [open an issue](https://github.com/jhurliman/node-motionblinds/issues/new?title=Interested%20in%20maintaining%20this%20project) describing your setup and interest.
+
 ## Install
 
 ```sh
