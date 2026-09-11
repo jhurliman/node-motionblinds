@@ -1,7 +1,8 @@
 # Changelog
 
-## 3.0.0 — Unreleased
+## 3.0.0 — 2026-09-10
 
+- Document the lack of live account/hardware testing and invite an active user to take over maintenance.
 - Require Node.js 22+; replace TSDX/Husky/Jest with direct TypeScript builds and Node tests.
 - Ship CommonJS, ESM (named and default gateway imports), declarations, source maps, and explicit package contents.
 - Serialize same-device/discovery requests, correlate acknowledged message IDs, enforce active-request deadlines, and clear/reject pending work on stop.
