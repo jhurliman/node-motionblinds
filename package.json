@@ -1,29 +1,24 @@
 {
-  "version": "2.3.1",
+  "version": "3.0.0",
   "license": "MIT",
   "description": "A library for interfacing with Motion Blinds from Coulisse B.V",
   "main": "dist/index.js",
-  "typings": "dist/index.d.ts",
   "files": [
     "dist",
-    "src"
+    "src",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=10"
+    "node": ">=22"
   },
   "scripts": {
-    "start": "tsdx watch",
-    "build": "tsdx build",
-    "test": "tsdx test",
-    "test:hil": "tsdx test --testMatch '<rootDir>/hiltest/*.ts'",
-    "lint": "tsdx lint",
-    "prepare": "tsdx build"
-  },
-  "peerDependencies": {},
-  "husky": {
-    "hooks": {
-      "pre-commit": "tsdx lint"
-    }
+    "prebuild": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc && node scripts/esm.cjs",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "test:types": "tsc -p type-tests/tsconfig.json",
+    "prepack": "npm run build",
+    "test:hil": "npm run build && node examples/read.cjs"
   },
   "prettier": {
     "printWidth": 100,
@@ -34,17 +29,26 @@
   "name": "motionblinds",
   "author": "John Hurliman",
   "homepage": "https://github.com/jhurliman/node-motionblinds",
-  "module": "dist/motionblinds.esm.js",
+  "module": "dist/index.mjs",
   "devDependencies": {
-    "@types/jest": "^27.5.0",
-    "@types/node": "^17.0.31",
-    "husky": "^7.0.4",
-    "tsdx": "^0.14.1",
-    "tslib": "^2.4.0",
-    "typescript": "^4.6.4"
+    "@types/node": "22.20.2",
+    "typescript": "7.0.2"
   },
-  "resolutions": {
-    "**/@typescript-eslint/eslint-plugin": "^4.1.5",
-    "**/@typescript-eslint/parser": "^4.1.5"
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jhurliman/node-motionblinds.git"
   }
 }
